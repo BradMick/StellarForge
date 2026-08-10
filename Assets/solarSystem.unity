@@ -226,91 +226,7 @@ Transform:
   m_GameObject: {fileID: 1620780693}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &1749512316
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1749512319}
-  - component: {fileID: 1749512318}
-  - component: {fileID: 1749512317}
-  m_Layer: 0
-  m_Name: SFSystemSpawner
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &1749512317
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1749512316}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5a84d37c4b8665a489ef622d42643de6, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SFSystemSpawner
-  scaleProfile: {fileID: 11400000, guid: 37da3ca9e6b6cda4fa37abe258cac7f3, type: 2}
-  archetypes: {fileID: 11400000, guid: 92fa41ee432424746b75b7efa934b0b9, type: 2}
-  planetPrefab: {fileID: 0}
-  spawnPlanets: 1
-  spawnGasGiants: 0
-  spawnStars: 1
-  autoRefresh: 1
-  animateOrbits: 1
---- !u!114 &1749512318
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1749512316}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4b4bd47c243c4d048931e45eb81dde15, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::StellarForge
-  SystemSeed: 91696
-  primaryMass: 0.91
-  overrideLuminosity: 0
-  primaryLuminosity: 0.63937235
-  binaryType: 0
-  companionMass: 0.29
-  binarySeparation: 2.7
-  binaryEccentricity: 0.042
-  Designation: Sol
-  Name: The Solar System
-  requireHabitable: 1
-  habitableSearchLimit: 500
-  requireInHabitableZone: 1
-  minimumHydrosphere: 0.05
-  drawSystemMap: 1
-  mapScaleFallback: 10
-  showOrbits: 1
-  showZones: 1
-  showLabels: 1
---- !u!4 &1749512319
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1749512316}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: -2649}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -369,10 +285,89 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &2090430565
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2090430568}
+  - component: {fileID: 2090430567}
+  - component: {fileID: 2090430566}
+  m_Layer: 0
+  m_Name: SFStarSpawner
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &2090430566
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2090430565}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 88d43fc6e63f134478e6d142e8415bd2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SFStarSpawner
+  scaleProfile: {fileID: 11400000, guid: 993e20d8c23b1234fbd518a90cda7193, type: 2}
+  animateOrbits: 1
+  daysPerSecond: 0.5
+--- !u!114 &2090430567
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2090430565}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4b4bd47c243c4d048931e45eb81dde15, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::StellarForge
+  SystemSeed: 90132
+  primaryMass: 1
+  overrideLuminosity: 0
+  primaryLuminosity: 1
+  binaryType: 0
+  companionMass: 0
+  binarySeparation: 0
+  binaryEccentricity: 0
+  Designation: Sol
+  Name: The Solar System
+  requireHabitable: 0
+  habitableSearchLimit: 500
+  requireInHabitableZone: 1
+  minimumHydrosphere: 0.05
+  drawSystemMap: 1
+  mapScale: 10
+  showOrbits: 1
+  showZones: 1
+  showLabels: 1
+--- !u!4 &2090430568
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2090430565}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
-  - {fileID: 1749512319}
   - {fileID: 1620780697}
   - {fileID: 1816690569}
+  - {fileID: 2090430568}

@@ -12,11 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1f3a909ad7ba65a429eac691c28e49a1, type: 3}
   m_Name: SystemScaleProfile
   m_EditorClassIdentifier: Assembly-CSharp::SFSystemScaleProfile
-  worldUnitsPerAU: 100000
+  worldUnitsPerAU: 10000
+  worldUnitsPerSolarRadius: 10000
+  starRadiusScale: 0.05
   worldUnitsPerPlanetKilometre: 1
-  planetRadiusScale: 0.001
-  worldUnitsPerSolarRadius: 100000
-  starRadiusScale: 0.01
-  daysPerSecond: 0.02
-  dayLengthCompression: 48
+  planetRadiusScale: 0.1
+  daysPerSecond: 0.5
   terrainHeightScale: 0.08

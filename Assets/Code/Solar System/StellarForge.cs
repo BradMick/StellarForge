@@ -62,28 +62,17 @@ public class StellarForge : MonoBehaviour
             companionMass = 0.0f;
 
         binarySeparation = Mathf.Max(binarySeparation, 0.0f);
-        mapScaleFallback = Mathf.Max(mapScaleFallback, 0.01f);
+        mapScale = Mathf.Max(mapScale, 0.01f);
 
 #if UNITY_EDITOR
-        //OnValidate fires once per inspector change — the right cadence for regeneration.
-        //It cannot generate directly (Unity forbids heavy work and object creation here),
-        //so it defers a single pass to the next editor tick
+        //Inspector edits must show up immediately: OnValidate fires on every field change,
+        //but the Scene view will not repaint on its own while nothing is selected/moving
         if (!Application.isPlaying)
-            UnityEditor.EditorApplication.delayCall += DeferredRegenerate;
-#endif
-    }
+            UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
 
-#if UNITY_EDITOR
-    private void DeferredRegenerate()
-    {
-        //The component may have been deleted between the edit and this callback
-        if (this == null || Application.isPlaying)
-            return;
-
-        EnsureGenerated();
         UnityEditor.SceneView.RepaintAll();
-    }
 #endif
+    }
 
     //Every value the generator consumes — a change to any of them invalidates the map
     private int ComputeGenerationHash()
@@ -102,31 +91,7 @@ public class StellarForge : MonoBehaviour
         hash = hash * 31 + habitableSearchLimit;
         hash = hash * 31 + (requireInHabitableZone ? 1 : 0);
         hash = hash * 31 + minimumHydrosphere.GetHashCode();
-        //Changing the scale profile moves every drawn body, so the map must redraw
-        SFSystemScaleProfile profile = ActiveScaleProfile;
-        hash = hash * 31 + (profile != null ? profile.GetInstanceID() : 0);
         return hash;
-    }
-
-    //Generate only when the inputs have actually changed. Everything that needs the
-    //system — the map overlay, the spawner — calls this rather than generating itself,
-    //so a system is built once per change instead of once per frame or per draw call
-    public void EnsureGenerated()
-    {
-        int hash = ComputeGenerationHash();
-
-        if (hash == lastGenerationHash && SystemMap.primaryStar != null)
-            return;
-
-        lastGenerationHash = hash;
-        TheForge();
-    }
-
-    //Force a rebuild even if nothing changed — the inspector's Regenerate button
-    public void ForceRegenerate()
-    {
-        lastGenerationHash = int.MinValue;
-        EnsureGenerated();
     }
 
     //A world worth landing on: temperate, wet, breathable-scale pressure, not tidally
@@ -180,29 +145,8 @@ public class StellarForge : MonoBehaviour
     //Draw the system in the Scene view (orbits, zone rings) — regenerates in edit mode
     public bool  drawSystemMap    = true;
 
-    //Used only when the spawner has no scale profile assigned yet
-    public float mapScaleFallback = 10.0f;
-
-    //The scale profile lives on the spawner — one authority for how this system maps to
-    //world units, so the overlay can never draw orbits the spawned bodies do not follow
-    public SFSystemScaleProfile ActiveScaleProfile
-    {
-        get
-        {
-            SFSystemSpawner spawner = GetComponent<SFSystemSpawner>();
-            return spawner != null ? spawner.scaleProfile : null;
-        }
-    }
-
-    //World units per AU for the overlay — the spawner's scale whenever one exists
-    public float mapScale
-    {
-        get
-        {
-            SFSystemScaleProfile profile = ActiveScaleProfile;
-            return profile != null ? (float)profile.worldUnitsPerAU : mapScaleFallback;
-        }
-    }
+    //World units per AU for the gizmo overlay
+    public float mapScale = 10.0f;
     public bool  showOrbits       = true;
     public bool  showZones        = true;
     public bool  showLabels       = true;
@@ -303,9 +247,14 @@ public class StellarForge : MonoBehaviour
         if (!drawSystemMap)
             return;
 
-        //Gizmo callbacks NEVER generate. Drawing runs many times per frame (once per
-        //scene view, plus picking passes), and generation is heavy — doing it here made
-        //the editor fight itself. Generation happens on demand: see EnsureGenerated
+        //Rebuild whenever ANY generation input changed — not just the seed
+        int hash = ComputeGenerationHash();
+        if (!Application.isPlaying && lastGenerationHash != hash)
+        {
+            lastGenerationHash = hash;
+            TheForge();
+        }
+
         if (SystemMap.primaryStar == null)
             return;
 
@@ -404,24 +353,9 @@ public class StellarForge : MonoBehaviour
             Vector3 position = _origin + body.GetPosition(time).ToVector3(mapScale);
             Gizmos.color = color;
 
-            //Bodies are drawn at their spawned size where a profile says what that is,
-            //with a floor so distant worlds stay clickable in the overlay
-            SFSystemScaleProfile profile = ActiveScaleProfile;
-            float size;
-
-            if (profile != null)
-            {
-                float trueRadius = body.isStar
-                    ? profile.StarRadiusToWorld(body.star.Radius)
-                    : profile.PlanetRadiusToWorld(body.planetData.EquitorialRadius);
-
-                //Never smaller than a readable dot at the current map scale
-                size = Mathf.Max(trueRadius, mapScale * (body.isStar ? 0.012f : 0.005f));
-            }
-            else
-                size = body.isStar
-                    ? Mathf.Max(mapScale * 0.06f * body.star.Radius, mapScale * 0.03f)
-                    : Mathf.Max(mapScale * 0.02f, 0.05f);
+            float size = body.isStar
+                ? Mathf.Max(mapScale * 0.06f * body.star.Radius, mapScale * 0.03f)
+                : Mathf.Max(mapScale * 0.02f, 0.05f);
 
             Gizmos.DrawSphere(position, size);
 
