@@ -1,0 +1,434 @@
+//GPU tile baker for SFPlanet — evaluates the full terrain stack (layered height field,
+//analytic normals, climate, biomes, vegetation, color composition) for whole batches of
+//tiles in one dispatch. This is a faithful HLSL mirror of SFPlanetTerrain.cs: it consumes
+//the SAME seeded permutation tables, so GPU geometry agrees with CPU point queries
+//(analytic raycast, altimetry) up to float rounding.
+//One thread per vertex; dispatch z = tile index within the batch.
+#pragma kernel BakeTiles
+#pragma kernel BakeFaceColor
+
+struct TileRequest
+{
+    int face;       //CUBE_INDEX
+    int lod;
+    int x;
+    int z;
+};
+
+struct BakedVertex
+{
+    float3 position;
+    float3 normal;
+    float4 color;
+    float2 uv;
+};
+
+struct BiomeGPU
+{
+    float temperatureMinK;
+    float temperatureMaxK;
+    float moistureMin;
+    float moistureMax;
+    float4 groundColor;
+    float4 vegetationColor;
+    float groundTint;
+    float treeDensity;
+    float grassDensity;
+    float pad;
+};
+
+StructuredBuffer<TileRequest> _Tiles;
+StructuredBuffer<int> _Perm;                    //8 tables x 512: base, warp, mountain, mask, detail, climate, moisture, vegetation
+StructuredBuffer<BiomeGPU> _Biomes;
+RWStructuredBuffer<BakedVertex> _Vertices;
+
+Texture2D<float4> _RampTexture;                 //baked SFTerrainColorRamp gradient
+SamplerState linear_clamp_sampler;
+
+int _MeshResolution;
+int _TileCount;
+int _HasTerrain;
+int _BiomeCount;
+float _PlanetRadius;
+
+//Height field
+float _HeightScale;
+float _OceanLevel;
+int _FlattenOcean;
+float _PlainsBias;
+float _Persistence;
+float _Lacunarity;
+float _ContinentFrequency;
+int _ContinentOctaves;
+float _WarpStrength;
+float _WarpFrequency;
+float _MountainFrequency;
+int _MountainOctaves;
+float _MountainAmount;
+float _MountainMaskFrequency;
+float _MountainMaskCoverage;
+float _DetailFrequency;
+int _DetailOctaves;
+float _DetailAmount;
+
+//Climate profile
+float _MeanTempK;
+float _EquatorPoleDeltaK;
+float _AltitudeLapseK;
+float _PressureMb;
+float _Hydrosphere;
+float _CloudCoverage;
+float _IceCoverage;
+float _AxialTiltDeg;
+float _ClimateNoiseFrequency;
+float _ClimateNoiseStrengthK;
+float _MoistureFrequency;
+
+//Surface layers
+float4 _CliffColor;
+float _CliffThreshold;
+float _CliffSoftness;
+float _VegNoiseFrequency;
+
+static const float3 WARP_OFFSET_A = float3(17.3, 9.1, 4.7);
+static const float3 WARP_OFFSET_B = float3(5.2, 12.8, 31.4);
+static const float NORMAL_EPSILON = 0.001;
+
+//---------------- Perlin noise (mirror of PerlinNoise3D.cs) ----------------
+
+float Fade(float t)
+{
+    return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+}
+
+float Grad(int hash, float x, float y, float z)
+{
+    int h = hash & 15;
+    float u = h < 8 ? x : y;
+    float v = h < 4 ? y : (h == 12 || h == 14 ? x : z);
+    return ((h & 1) == 0 ? u : -u) + ((h & 2) == 0 ? v : -v);
+}
+
+float SampleNoise(int table, float3 p)
+{
+    int o = table * 512;
+
+    int X = (int)floor(p.x) & 255;
+    int Y = (int)floor(p.y) & 255;
+    int Z = (int)floor(p.z) & 255;
+
+    float x = p.x - floor(p.x);
+    float y = p.y - floor(p.y);
+    float z = p.z - floor(p.z);
+
+    float u = Fade(x);
+    float v = Fade(y);
+    float w = Fade(z);
+
+    int A = _Perm[o + X] + Y;
+    int AA = _Perm[o + A] + Z;
+    int AB = _Perm[o + A + 1] + Z;
+    int B = _Perm[o + X + 1] + Y;
+    int BA = _Perm[o + B] + Z;
+    int BB = _Perm[o + B + 1] + Z;
+
+    return lerp(
+        lerp(lerp(Grad(_Perm[o + AA], x, y, z),         Grad(_Perm[o + BA], x - 1.0, y, z), u),
+             lerp(Grad(_Perm[o + AB], x, y - 1.0, z),   Grad(_Perm[o + BB], x - 1.0, y - 1.0, z), u), v),
+        lerp(lerp(Grad(_Perm[o + AA + 1], x, y, z - 1.0),       Grad(_Perm[o + BA + 1], x - 1.0, y, z - 1.0), u),
+             lerp(Grad(_Perm[o + AB + 1], x, y - 1.0, z - 1.0), Grad(_Perm[o + BB + 1], x - 1.0, y - 1.0, z - 1.0), u), v),
+        w);
+}
+
+float FBM(int table, float3 p, float frequency, int octaves)
+{
+    float amplitude = 1.0, sum = 0.0, range = 0.0, freq = frequency;
+
+    for (int i = 0; i < octaves; i++)
+    {
+        sum += SampleNoise(table, p * freq) * amplitude;
+        range += amplitude;
+        amplitude *= _Persistence;
+        freq *= _Lacunarity;
+    }
+
+    return sum / range;
+}
+
+float RidgedFBM(int table, float3 p, float frequency, int octaves)
+{
+    float amplitude = 1.0, sum = 0.0, range = 0.0, freq = frequency;
+
+    for (int i = 0; i < octaves; i++)
+    {
+        float signal = 1.0 - abs(SampleNoise(table, p * freq));
+        signal *= signal;
+        sum += signal * amplitude;
+        range += amplitude;
+        amplitude *= _Persistence;
+        freq *= _Lacunarity;
+    }
+
+    return sum / range;
+}
+
+float SmoothStep01(float t)
+{
+    t = saturate(t);
+    return t * t * (3.0 - 2.0 * t);
+}
+
+//---------------- Surface function (mirror of SFPlanetTerrain.cs) ----------------
+
+float3 CubePointToDirection(int face, float u, float v)
+{
+    float3 p;
+    if (face == 0)      p = float3(u, 0.5, v);       //TOP
+    else if (face == 1) p = float3(u, -0.5, -v);     //BOTTOM
+    else if (face == 2) p = float3(-0.5, v, -u);     //LEFT
+    else if (face == 3) p = float3(0.5, v, u);       //RIGHT
+    else if (face == 4) p = float3(-u, v, 0.5);      //FRONT
+    else                p = float3(u, v, -0.5);      //BACK
+    return normalize(p);
+}
+
+float GetHeight(float3 dir)
+{
+    if (_HasTerrain == 0)
+        return 0.0;
+
+    float3 warped = dir + _WarpStrength * float3(
+        SampleNoise(1, dir * _WarpFrequency),
+        SampleNoise(1, dir * _WarpFrequency + WARP_OFFSET_A),
+        SampleNoise(1, dir * _WarpFrequency + WARP_OFFSET_B));
+
+    float continents = FBM(0, warped, _ContinentFrequency, _ContinentOctaves);
+
+    float maskSample = 0.5 + 0.5 * FBM(3, dir, _MountainMaskFrequency, 2);
+    float mask = SmoothStep01((maskSample - (1.0 - _MountainMaskCoverage - 0.1)) / 0.2);
+    float ridged = RidgedFBM(2, warped, _MountainFrequency, _MountainOctaves);
+
+    float detail = FBM(4, dir, _DetailFrequency, _DetailOctaves);
+
+    float h = continents + _MountainAmount * mask * ridged + _DetailAmount * detail;
+    h /= 1.0 + _MountainAmount + _DetailAmount;
+    h = clamp(h, -1.0, 1.0);
+
+    h = sign(h) * pow(abs(h), _PlainsBias);
+
+    if (_FlattenOcean == 1 && h < _OceanLevel)
+        h = _OceanLevel;
+
+    return h * _HeightScale * _PlanetRadius;
+}
+
+float3 GetSurfacePoint(float3 dir)
+{
+    return dir * (_PlanetRadius + GetHeight(dir));
+}
+
+float3 GetSurfaceNormal(float3 dir)
+{
+    float3 reference = abs(dir.y) < 0.99 ? float3(0, 1, 0) : float3(1, 0, 0);
+    float3 tangent = normalize(cross(reference, dir));
+    float3 bitangent = cross(dir, tangent);
+
+    float3 deltaTangent = GetSurfacePoint(normalize(dir + tangent * NORMAL_EPSILON))
+                        - GetSurfacePoint(normalize(dir - tangent * NORMAL_EPSILON));
+    float3 deltaBitangent = GetSurfacePoint(normalize(dir + bitangent * NORMAL_EPSILON))
+                          - GetSurfacePoint(normalize(dir - bitangent * NORMAL_EPSILON));
+
+    return normalize(cross(deltaTangent, deltaBitangent));
+}
+
+void ComputeClimate(float3 dir, float hNorm, out float temperatureK, out float moisture)
+{
+    float latitude = abs(dir.y);
+    float sea = clamp(_OceanLevel, -0.99, 0.99);
+    float altitude01 = saturate((hNorm - sea) / (1.0 - sea));
+
+    float gradient = _EquatorPoleDeltaK * (1.0 - 0.3 * saturate(_AxialTiltDeg / 90.0));
+
+    temperatureK = _MeanTempK
+                 + gradient * (0.5 - latitude)
+                 - _AltitudeLapseK * altitude01
+                 - _IceCoverage * 20.0 * latitude
+                 + FBM(5, dir, _ClimateNoiseFrequency, 2) * _ClimateNoiseStrengthK;
+
+    float pressureFactor = saturate((_PressureMb - 10.0) / 490.0);
+    float baseline = _Hydrosphere * 0.55 + _CloudCoverage * 0.3;
+
+    moisture = saturate(baseline + FBM(6, dir, _MoistureFrequency, 3) * 0.45) * sqrt(pressureFactor);
+}
+
+float VegetationViability(float temperatureK)
+{
+    float cold = saturate((temperatureK - 256.0) / 15.0);
+    float hot = 1.0 - saturate((temperatureK - 312.0) / 20.0);
+    float pressure = saturate((_PressureMb - 60.0) / 240.0);
+    return cold * hot * pressure;
+}
+
+float RangeWeight(float value, float minV, float maxV, float margin)
+{
+    if (value < minV) return saturate(1.0 - (minV - value) / margin);
+    if (value > maxV) return saturate(1.0 - (value - maxV) / margin);
+    return 1.0;
+}
+
+float4 GetSurfaceColor(float3 dir, float3 normal, float height)
+{
+    if (_HasTerrain == 0)
+        return float4(1.0, 1.0, 1.0, 0.0);
+
+    float range = _HeightScale * _PlanetRadius;
+    float hNorm = range > 0.0 ? clamp(height / range, -1.0, 1.0) : 0.0;
+    float sea = clamp(_OceanLevel, -0.99, 0.99);
+
+    float t = hNorm >= sea
+        ? 0.5 + 0.5 * (hNorm - sea) / (1.0 - sea)
+        : 0.5 * (hNorm + 1.0) / (sea + 1.0);
+
+    float4 color = _RampTexture.SampleLevel(linear_clamp_sampler, float2(t, 0.5), 0);
+    color.a = 0.0;
+
+    if (hNorm <= sea)
+        return color;
+
+    float steepness = 1.0 - saturate(dot(normal, dir));
+    float cliff = saturate((steepness - _CliffThreshold) / _CliffSoftness);
+    color = lerp(color, _CliffColor, cliff);
+    color.a = 0.0;
+
+    if (_BiomeCount == 0)
+        return color;
+
+    float temperatureK, moisture;
+    ComputeClimate(dir, hNorm, temperatureK, moisture);
+
+    float4 ground = 0.0;
+    float4 vegetation = 0.0;
+    float tint = 0.0, trees = 0.0, grass = 0.0, total = 0.0;
+
+    for (int i = 0; i < _BiomeCount; i++)
+    {
+        BiomeGPU b = _Biomes[i];
+
+        float w = RangeWeight(temperatureK, b.temperatureMinK, b.temperatureMaxK, 8.0)
+                * RangeWeight(moisture, b.moistureMin, b.moistureMax, 0.12);
+
+        if (w <= 0.0)
+            continue;
+
+        total += w;
+        ground += b.groundColor * w;
+        tint += b.groundTint * w;
+        vegetation += b.vegetationColor * w;
+        trees += b.treeDensity * w;
+        grass += b.grassDensity * w;
+    }
+
+    if (total <= 0.0001)
+        return color;
+
+    float inv = 1.0 / total;
+    ground *= inv;
+    tint *= inv;
+    vegetation *= inv;
+    trees *= inv;
+    grass *= inv;
+    ground.a = 1.0;
+
+    color = lerp(color, ground, tint * (1.0 - cliff));
+
+    float viability = VegetationViability(temperatureK);
+    float patch = saturate(0.5 + 0.8 * FBM(7, dir, _VegNoiseFrequency, 2));
+    float shoreFade = saturate((t - 0.505) / 0.03);
+    float coverage = saturate(grass * 0.8 + trees * 0.9) * viability * patch * (1.0 - cliff) * shoreFade;
+
+    vegetation.a = 1.0;
+    color = lerp(color, vegetation, coverage);
+    color.a = coverage;
+
+    return color;
+}
+
+//---------------- Kernel ----------------
+
+[numthreads(8, 8, 1)]
+void BakeTiles(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= _MeshResolution || (int)id.y >= _MeshResolution || (int)id.z >= _TileCount)
+        return;
+
+    TileRequest tile = _Tiles[id.z];
+
+    int quads = _MeshResolution - 1;
+    float denominator = (float)(quads * (1 << tile.lod));
+
+    //Identical vertex math to SFSurface.ComputeVertexCoordinates
+    float xPos = (id.x + tile.x * quads) / denominator - 0.5;
+    float zPos = (id.y + tile.z * quads) / denominator - 0.5;
+
+    float3 dir = CubePointToDirection(tile.face, xPos, zPos);
+
+    float height = GetHeight(dir);
+    float3 normal = GetSurfaceNormal(dir);
+
+    BakedVertex v;
+    v.position = dir * (_PlanetRadius + height);
+    v.normal = normal;
+    v.color = GetSurfaceColor(dir, normal, height);
+    v.uv = float2(xPos + 0.5, zPos + 0.5);
+
+    _Vertices[id.z * _MeshResolution * _MeshResolution + id.y * _MeshResolution + id.x] = v;
+}
+
+//---------------- Per-face color map ----------------
+//Bakes the color composition per TEXEL instead of per vertex — coastlines, biome edges
+//and cliff bands stay crisp at any viewing distance, independent of mesh LOD.
+//Texel (x,y) maps to face grid coords exactly like mesh UVs: uv = gridPos + 0.5
+
+RWTexture2D<float4> _FaceColor;
+int _FaceIndex;
+int _ColorMapResolution;
+
+//Far-map variant: oceans painted directly into the texture (shallow→deep gradient), for
+//the frozen distant-planet tier where the transparent water shell is hidden
+int _PaintWater;
+float4 _WaterShallow;
+float4 _WaterDeep;
+
+[numthreads(8, 8, 1)]
+void BakeFaceColor(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= _ColorMapResolution || (int)id.y >= _ColorMapResolution)
+        return;
+
+    float u = (id.x + 0.5) / (float)_ColorMapResolution - 0.5;
+    float v = (id.y + 0.5) / (float)_ColorMapResolution - 0.5;
+
+    float3 dir = CubePointToDirection(_FaceIndex, u, v);
+
+    float height = GetHeight(dir);
+    float3 normal = GetSurfaceNormal(dir);
+
+    float4 color = GetSurfaceColor(dir, normal, height);
+
+    if (_PaintWater == 1 && _HasTerrain == 1)
+    {
+        float range = _HeightScale * _PlanetRadius;
+        float hNorm = range > 0.0 ? clamp(height / range, -1.0, 1.0) : 0.0;
+        float sea = clamp(_OceanLevel, -0.99, 0.99);
+
+        if (hNorm <= sea)
+        {
+            //Coastal fringe stays shallow-colored, open ocean goes deep quickly
+            float depth01 = saturate((sea - hNorm) / max(sea + 1.0, 0.001) * 4.0);
+            color = lerp(_WaterShallow, _WaterDeep, depth01);
+            color.a = 0.0;
+        }
+    }
+
+    _FaceColor[id.xy] = color;
+}

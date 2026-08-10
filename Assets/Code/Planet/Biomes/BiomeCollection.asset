@@ -1,0 +1,95 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5b5ad02d8572de443aa2dec1f0647527, type: 3}
+  m_Name: BiomeCollection
+  m_EditorClassIdentifier: Assembly-CSharp::SFBiomeCollection
+  biomes:
+  - name: Ice Cap
+    temperatureMinK: 0
+    temperatureMaxK: 255
+    moistureMin: 0
+    moistureMax: 1
+    groundColor: {r: 0.92, g: 0.95, b: 1, a: 1}
+    groundTint: 0.9
+    vegetationColor: {r: 1, g: 1, b: 1, a: 1}
+    treeDensity: 0
+    grassDensity: 0
+  - name: Tundra
+    temperatureMinK: 250
+    temperatureMaxK: 275
+    moistureMin: 0
+    moistureMax: 0.7
+    groundColor: {r: 0.55, g: 0.52, b: 0.45, a: 1}
+    groundTint: 0.6
+    vegetationColor: {r: 0.45, g: 0.5, b: 0.35, a: 1}
+    treeDensity: 0.05
+    grassDensity: 0.25
+  - name: Boreal Forest
+    temperatureMinK: 265
+    temperatureMaxK: 285
+    moistureMin: 0.35
+    moistureMax: 1
+    groundColor: {r: 0.4, g: 0.42, b: 0.35, a: 1}
+    groundTint: 0.4
+    vegetationColor: {r: 0.1, g: 0.28, b: 0.16, a: 1}
+    treeDensity: 0.65
+    grassDensity: 0.3
+  - name: Grassland
+    temperatureMinK: 278
+    temperatureMaxK: 298
+    moistureMin: 0.15
+    moistureMax: 0.5
+    groundColor: {r: 0.55, g: 0.52, b: 0.35, a: 1}
+    groundTint: 0.4
+    vegetationColor: {r: 0.42, g: 0.52, b: 0.22, a: 1}
+    treeDensity: 0.08
+    grassDensity: 0.75
+  - name: Temperate Forest
+    temperatureMinK: 278
+    temperatureMaxK: 296
+    moistureMin: 0.45
+    moistureMax: 1
+    groundColor: {r: 0.42, g: 0.4, b: 0.3, a: 1}
+    groundTint: 0.35
+    vegetationColor: {r: 0.16, g: 0.38, b: 0.14, a: 1}
+    treeDensity: 0.8
+    grassDensity: 0.4
+  - name: Desert
+    temperatureMinK: 290
+    temperatureMaxK: 340
+    moistureMin: 0
+    moistureMax: 0.22
+    groundColor: {r: 0.78, g: 0.66, b: 0.44, a: 1}
+    groundTint: 0.85
+    vegetationColor: {r: 0.45, g: 0.48, b: 0.28, a: 1}
+    treeDensity: 0.01
+    grassDensity: 0.05
+  - name: Savanna
+    temperatureMinK: 293
+    temperatureMaxK: 320
+    moistureMin: 0.2
+    moistureMax: 0.5
+    groundColor: {r: 0.72, g: 0.62, b: 0.38, a: 1}
+    groundTint: 0.55
+    vegetationColor: {r: 0.52, g: 0.54, b: 0.24, a: 1}
+    treeDensity: 0.12
+    grassDensity: 0.6
+  - name: Tropical Rainforest
+    temperatureMinK: 294
+    temperatureMaxK: 315
+    moistureMin: 0.5
+    moistureMax: 1
+    groundColor: {r: 0.3, g: 0.32, b: 0.2, a: 1}
+    groundTint: 0.3
+    vegetationColor: {r: 0.07, g: 0.3, b: 0.1, a: 1}
+    treeDensity: 0.95
+    grassDensity: 0.5

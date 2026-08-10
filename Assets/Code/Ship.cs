@@ -42,14 +42,14 @@ public class Ship : MonoBehaviour
         rb = gameObject.GetComponent<Rigidbody>();
         rb.useGravity = false;
         //Drag!
-        rb.drag = 0.0f;
-        rb.angularDrag = 0.0f;
+        rb.linearDamping = 0.0f;
+        rb.angularDamping = 0.0f;
 
     }
 
     void Update()
     {
-        localLinearVelocity = this.transform.InverseTransformDirection(rb.velocity);
+        localLinearVelocity = this.transform.InverseTransformDirection(rb.linearVelocity);
         localAngularVelocity = this.transform.InverseTransformDirection(rb.angularVelocity);
 
         velocityError.x = setLatTransVel  + localLinearVelocity.x;
