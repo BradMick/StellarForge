@@ -60,12 +60,15 @@ public class SFStarSpawner : MonoBehaviour
         if (forge == null)
             forge = GetComponent<StellarForge>();
 
-        SFSystemMap map = forge != null ? forge.Map : null;
+        //EnsureGenerated, not Map: this runs from Start in play mode, and Start order
+        //between two components on the same GameObject is undefined — reading Map directly
+        //hit a null map whenever this won the race against StellarForge.Start
+        SFSystemMap map = forge != null ? forge.EnsureGenerated() : null;
 
         if (map == null || map.primaryStar == null)
         {
-            Debug.LogWarning("SFStarSpawner: no system generated yet. Select the StellarForge "
-                + "object in the scene so the map builds, then spawn again.");
+            Debug.LogWarning("SFStarSpawner: the generator produced no system. Check the "
+                + "StellarForge settings on this object.");
             return;
         }
 

@@ -232,12 +232,34 @@ public class StellarForge : MonoBehaviour
 
     public SFSystemMap Map { get { return SystemMap; } }
 
+    //Generate the system if it has not been generated yet, and return the map.
+    //
+    //Anything reading Map must come through here. Generation is triggered by lifecycle
+    //events — Start in play mode, a driver tick in edit mode — and a consumer can easily
+    //run before either: Start order between two components on the same GameObject is
+    //undefined, and after a domain reload the driver's first tick has not happened yet.
+    //Both cases used to hand out a null map. Cheap when already generated
+    public SFSystemMap EnsureGenerated()
+    {
+        if (SystemMap.primaryStar == null)
+        {
+            lastGenerationHash = ComputeGenerationHash();
+            TheForge();
+        }
+
+        return SystemMap;
+    }
+
     void Start()
     {
         if (!Application.isPlaying)
             return;
 
-        TheForge();
+        //EnsureGenerated, not TheForge: a consumer whose Start ran before this one has
+        //already generated the system (Start order on one GameObject is undefined), and
+        //regenerating here would run the whole simulation a second time — and hand out a
+        //DIFFERENT system to anything that already read the first one
+        EnsureGenerated();
 
         Debug.Log("--------------------------------------------------");
         //for (int i = 0; i < DUST_LIST.Count; i++)
