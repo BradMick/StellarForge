@@ -26,6 +26,7 @@ public class SFDynamicClipPlanes : MonoBehaviour
 
     private Camera targetCamera;
     private SFPlanet[] cachedPlanets = new SFPlanet[0];
+    private SFStar[] cachedStars = new SFStar[0];
     private float nextPlanetScan;
 
     private void LateUpdate()
@@ -50,9 +51,20 @@ public class SFDynamicClipPlanes : MonoBehaviour
                 }
         }
 
+        if (!stale)
+        {
+            for (int i = 0; i < cachedStars.Length; i++)
+                if (cachedStars[i] == null)
+                {
+                    stale = true;
+                    break;
+                }
+        }
+
         if (stale)
         {
             cachedPlanets = FindObjectsByType<SFPlanet>(FindObjectsSortMode.None);
+            cachedStars = FindObjectsByType<SFStar>(FindObjectsSortMode.None);
             nextPlanetScan = Time.unscaledTime + 1.0f;
         }
 
@@ -79,6 +91,30 @@ public class SFDynamicClipPlanes : MonoBehaviour
                 farthest = reach;
         }
 
+        //Stars count too. They were ignored here, which meant a system with stars but no
+        //planets — the normal state before a planet spawn pass exists — took the early-out
+        //below and left the camera on its default planes. At a million-plus units out, that
+        //has no depth precision left for the photosphere sphere, and the star renders as a
+        //black disc inside its own glare
+        SFStar[] stars = cachedStars;
+        for (int i = 0; i < stars.Length; i++)
+        {
+            if (stars[i] == null)
+                continue;
+
+            float surfaceRadius = stars[i].visualRadius;
+            float centerDistance = Vector3.Distance(transform.position, stars[i].transform.position);
+
+            float a = centerDistance - surfaceRadius;
+            if (a < altitude)
+                altitude = a;
+
+            float reach = centerDistance + surfaceRadius;
+            if (reach > farthest)
+                farthest = reach;
+        }
+
+        //Nothing to frame — leave the camera's authored planes alone
         if (altitude == float.MaxValue)
             return;
 
