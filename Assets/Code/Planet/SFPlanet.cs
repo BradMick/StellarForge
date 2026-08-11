@@ -11,11 +11,23 @@ public enum EDGE_INDEX { SOUTH, NORTH, WEST, EAST }
 //pairing or degenerate the mesh/bake pipeline, so the inspector only offers these
 public enum SF_QUADS_PER_EDGE { Quads4 = 4, Quads8 = 8, Quads16 = 16, Quads32 = 32 }
 
+//The edit-mode preview is driven by SFEditorDriver, not by this component — it rebuilds
+//when marked dirty and never watches for its own changes. See SFEditorDriver for why
 [ExecuteAlways]
 public class SFPlanet : MonoBehaviour
+#if UNITY_EDITOR
+    , SFEditorDriver.ISFEditorClient
+#endif
 {
     //Planet details...
     public float            planetRadius    = 1.0f;
+
+    //Shell planets (water, atmosphere) are terrainless SFPlanets owned by the shell
+    //component that created them. Their owner rebuilds them as part of its own pass, so
+    //they must NOT be driven independently — two clients rebuilding one object is exactly
+    //the collision this driver exists to prevent
+    [System.NonSerialized]
+    public bool             isShellPlanet   = false;
 
     //Mesh details...
     //Quads per tile edge — restricted to vetted power-of-two values: stitching needs border
@@ -120,6 +132,13 @@ public class SFPlanet : MonoBehaviour
         maxLODCap = Mathf.Clamp(maxLODCap, 0, 26);
 
         RecomputeDerivedLOD();
+
+#if UNITY_EDITOR
+        //Queue a rebuild and nothing else — the driver decides when it happens. Clamping
+        //derived values above is pure arithmetic on this component and stays here
+        if (!Application.isPlaying)
+            SFEditorDriver.MarkDirty(this);
+#endif
     }
 
     //maxLOD = smallest depth whose quads reach the target ground resolution.
@@ -1136,6 +1155,13 @@ public class SFPlanet : MonoBehaviour
 
     private int editorPreviewHash;
 
+    //Where this planet sits in the driver's dependency order. Shell planets are rebuilt by
+    //the shell component that owns them, so they never queue themselves
+    public SFEditorDriver.SF_REBUILD_ORDER RebuildOrder
+    {
+        get { return SFEditorDriver.SF_REBUILD_ORDER.PLANET; }
+    }
+
     private void OnEnable()
     {
         if (Application.isPlaying)
@@ -1150,9 +1176,12 @@ public class SFPlanet : MonoBehaviour
                 DestroyImmediate(child);
         }
 
+        //Force the first rebuild: the hash of a freshly reloaded planet matches whatever it
+        //was before the reload, but its tiles are gone
         editorPreviewHash = 0;
-        UnityEditor.EditorApplication.update -= EditorPreviewTick;
-        UnityEditor.EditorApplication.update += EditorPreviewTick;
+
+        if (!isShellPlanet)
+            SFEditorDriver.MarkDirty(this);
     }
 
     private void OnDisable()
@@ -1168,23 +1197,22 @@ public class SFPlanet : MonoBehaviour
         if (Application.isPlaying)
             return;
 
-        UnityEditor.EditorApplication.update -= EditorPreviewTick;
+        SFEditorDriver.Forget(this);
         DestroyAllSurfaces();
     }
 
-    private void EditorPreviewTick()
+    //Called only by SFEditorDriver — or, for shell planets, by the shell that owns them.
+    //Regenerates the fixed-subdivision preview when anything it depends on has changed
+    public void EditorRebuild()
     {
-        if (this == null)
-        {
-            UnityEditor.EditorApplication.update -= EditorPreviewTick;
-            return;
-        }
-
         if (terrain == null)
             terrain = GetComponent<SFPlanetTerrain>();
 
         RecomputeDerivedLOD();
 
+        //The hash still earns its place: the driver coalesces marks, but a mark does not
+        //prove anything actually changed (OnValidate fires on any field, including ones the
+        //mesh does not depend on). Regenerating every tile then would be pure waste
         int hash = ComputeEditorPreviewHash();
         if (hash != editorPreviewHash || surfaceList.Count == 0)
         {

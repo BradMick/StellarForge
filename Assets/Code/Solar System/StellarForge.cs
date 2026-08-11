@@ -14,6 +14,9 @@ public enum SF_BINARY_TYPE
 
 [ExecuteAlways]
 public class StellarForge : MonoBehaviour
+#if UNITY_EDITOR
+    , SFEditorDriver.ISFEditorClient
+#endif
 {
     public int    SystemSeed    = 90132;
 
@@ -65,14 +68,51 @@ public class StellarForge : MonoBehaviour
         mapScale = Mathf.Max(mapScale, 0.01f);
 
 #if UNITY_EDITOR
-        //Inspector edits must show up immediately: OnValidate fires on every field change,
-        //but the Scene view will not repaint on its own while nothing is selected/moving
+        //Queue the regeneration; the driver runs it before anything that reads the map.
+        //The clamping above is arithmetic on this component's own fields and stays here
         if (!Application.isPlaying)
-            UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
+            SFEditorDriver.MarkDirty(this);
 
         UnityEditor.SceneView.RepaintAll();
 #endif
     }
+
+#if UNITY_EDITOR
+    //The generator runs first: stars, planets and shells are all built from its output
+    public SFEditorDriver.SF_REBUILD_ORDER RebuildOrder
+    {
+        get { return SFEditorDriver.SF_REBUILD_ORDER.GENERATOR; }
+    }
+
+    private void OnEnable()
+    {
+        //A reloaded domain has no map — the fields survive serialization, the generated
+        //system does not
+        if (!Application.isPlaying)
+            SFEditorDriver.MarkDirty(this);
+    }
+
+    private void OnDisable()
+    {
+        SFEditorDriver.Forget(this);
+    }
+
+    //Called only by SFEditorDriver. Regenerates the system when any generation input has
+    //changed — the hash makes a redundant mark cheap, which matters because accretion plus
+    //the environment relaxation is by far the most expensive thing in a tick
+    public void EditorRebuild()
+    {
+        int hash = ComputeGenerationHash();
+        if (lastGenerationHash == hash && SystemMap.primaryStar != null)
+            return;
+
+        lastGenerationHash = hash;
+        TheForge();
+
+        //The map changed, so anything drawing it is stale
+        UnityEditor.SceneView.RepaintAll();
+    }
+#endif
 
     //Every value the generator consumes — a change to any of them invalidates the map
     private int ComputeGenerationHash()
@@ -247,14 +287,13 @@ public class StellarForge : MonoBehaviour
         if (!drawSystemMap)
             return;
 
-        //Rebuild whenever ANY generation input changed — not just the seed
-        int hash = ComputeGenerationHash();
-        if (!Application.isPlaying && lastGenerationHash != hash)
-        {
-            lastGenerationHash = hash;
-            TheForge();
-        }
-
+        //Gizmos DRAW. They do not generate.
+        //
+        //This callback used to run TheForge() when it noticed the inputs had changed, which
+        //meant the whole accretion + environment simulation ran from a rendering callback:
+        //once per scene view, on selection change, and not at all with gizmos switched off.
+        //Generation now happens in SFEditorDriver's tick (see EditorRebuild below), so the
+        //map is already built by the time anything draws it
         if (SystemMap.primaryStar == null)
             return;
 

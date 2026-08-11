@@ -3,9 +3,15 @@ using UnityEngine;
 //Atmosphere shell around a terrain planet. Attach next to SFPlanet. Spawns a smooth
 //inside-out shell (a terrainless SFPlanet, like the water shell) wearing the atmosphere
 //shader: limb glow from space, sky dome from the surface, sun-aware day/night with a
-//sunset terminator band. Works in edit mode; the shell is transient (never saved)
+//sunset terminator band. Works in edit mode; the shell is transient (never saved).
+//
+//The edit-mode preview is driven by SFEditorDriver, not by this component — it rebuilds
+//when marked dirty and never watches for its own changes. See SFEditorDriver for why
 [ExecuteAlways]
 public class SFAtmosphere : MonoBehaviour
+#if UNITY_EDITOR
+    , SFEditorDriver.ISFEditorClient
+#endif
 {
     //Shell height as a fraction of planet radius (Earth's sensible-atmosphere ≈ 0.02;
     //gameplay planets read better a little thicker)
@@ -77,8 +83,11 @@ public class SFAtmosphere : MonoBehaviour
             shellObject.hideFlags = HideFlags.HideAndDontSave;
 
         //Smooth sphere, no terrain, no colliders, no cullers (a transparent dome must
-        //never lose its far-side limb tiles), modest depth — curvature only
+        //never lose its far-side limb tiles), modest depth — curvature only.
+        //In edit mode this shell rebuilds it directly (see EditorRebuild) — a shell planet
+        //never queues itself with the driver, so nothing else can rebuild it behind our back
         shellPlanet = shellObject.AddComponent<SFPlanet>();
+        shellPlanet.isShellPlanet = true;
         shellPlanet.planetRadius = ShellRadius();
         shellPlanet.LOD = 2;
         shellPlanet.quadsPerEdgeSetting = SF_QUADS_PER_EDGE.Quads8;
@@ -155,13 +164,19 @@ public class SFAtmosphere : MonoBehaviour
     #region Editor Preview
 
 #if UNITY_EDITOR
+    //Shells attach to a planet that must already have been built this tick
+    public SFEditorDriver.SF_REBUILD_ORDER RebuildOrder
+    {
+        get { return SFEditorDriver.SF_REBUILD_ORDER.SHELL; }
+    }
+
     private void OnEnable()
     {
         if (Application.isPlaying)
             return;
 
-        UnityEditor.EditorApplication.update -= EditorTick;
-        UnityEditor.EditorApplication.update += EditorTick;
+        //Ask for one rebuild; the driver owns the loop
+        SFEditorDriver.MarkDirty(this);
     }
 
     private void OnDisable()
@@ -169,7 +184,7 @@ public class SFAtmosphere : MonoBehaviour
         if (Application.isPlaying)
             return;
 
-        UnityEditor.EditorApplication.update -= EditorTick;
+        SFEditorDriver.Forget(this);
 
         if (shellPlanet != null)
         {
@@ -178,21 +193,33 @@ public class SFAtmosphere : MonoBehaviour
         }
     }
 
-    private void EditorTick()
+    //Inspector edits queue a rebuild and nothing else. Doing the work here would run it
+    //once per changed field, mid-drag, outside the driver's ordering
+    private void OnValidate()
     {
-        if (this == null)
-        {
-            UnityEditor.EditorApplication.update -= EditorTick;
+        if (Application.isPlaying)
             return;
-        }
 
+        SFEditorDriver.MarkDirty(this);
+    }
+
+    //Called only by SFEditorDriver
+    public void EditorRebuild()
+    {
         if (!ResolveHost())
             return;
 
+        //Self-heals: the host planet rebuilding destroys its children, this shell included
         if (shellPlanet == null)
             CreateShell();
 
         SyncShell();
+
+        //The shell planet is ours to drive: it is flagged isShellPlanet, so it never queues
+        //itself and would otherwise sit unbuilt. Sync first, rebuild second — the rebuild
+        //has to see this frame's shell radius and material
+        if (shellPlanet != null)
+            shellPlanet.EditorRebuild();
     }
 #endif
 

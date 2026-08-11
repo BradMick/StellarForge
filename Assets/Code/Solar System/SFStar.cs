@@ -6,9 +6,15 @@ using UnityEngine;
 //size, colour and brightness all follow from the derived physics — an M-dwarf renders
 //small and deep orange, an A-star large and blue-white, with no authoring.
 //The light is a proxy: at stellar distances the rays are effectively parallel, so a
-//directional light aimed from the star at the scene is both correct and cheap
+//directional light aimed from the star at the scene is both correct and cheap.
+//
+//The edit-mode rebuild is driven by SFEditorDriver, not by this component. See
+//SFEditorDriver for why
 [ExecuteAlways]
 public class SFStar : MonoBehaviour
+#if UNITY_EDITOR
+    , SFEditorDriver.ISFEditorClient
+#endif
 {
     [Header("Physical Description")]
     //Populated by the generator; editable here for standalone testing
@@ -87,15 +93,48 @@ public class SFStar : MonoBehaviour
         Rebuild();
     }
 
+#if UNITY_EDITOR
+    //Stars are built from the generated system, before planets and shells
+    public SFEditorDriver.SF_REBUILD_ORDER RebuildOrder
+    {
+        get { return SFEditorDriver.SF_REBUILD_ORDER.STAR; }
+    }
+
+    //Called only by SFEditorDriver
+    public void EditorRebuild()
+    {
+        if (isActiveAndEnabled)
+            Rebuild();
+    }
+#endif
+
     private void OnEnable()
     {
-        Rebuild();
+        //Play mode has no driver — build immediately. In edit mode the driver decides when
+        if (Application.isPlaying)
+        {
+            Rebuild();
+            return;
+        }
+
+#if UNITY_EDITOR
+        SFEditorDriver.MarkDirty(this);
+#endif
     }
 
     private void OnValidate()
     {
-        if (isActiveAndEnabled)
-            Rebuild();
+        if (Application.isPlaying)
+        {
+            if (isActiveAndEnabled)
+                Rebuild();
+            return;
+        }
+
+#if UNITY_EDITOR
+        //Queue a rebuild and nothing else — the driver owns the loop
+        SFEditorDriver.MarkDirty(this);
+#endif
     }
 
     private void Update()
@@ -337,6 +376,10 @@ public class SFStar : MonoBehaviour
 
     private void OnDisable()
     {
+#if UNITY_EDITOR
+        SFEditorDriver.Forget(this);
+#endif
+
         //Transient children are rebuilt on enable; never leave them in the scene
         if (surfaceObject != null) DestroyImmediate(surfaceObject);
         if (prominenceObject != null) DestroyImmediate(prominenceObject);

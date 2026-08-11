@@ -6,9 +6,15 @@ using UnityEngine;
 //close, horizon-culled far side, and no colliders (water depth is analytic:
 //|pos - center| - seaRadius). Sea level tracks the terrain's oceanLevel live; keep
 //flattenOcean OFF on SFPlanetTerrain so the height field dives below the shell.
-//Works in edit mode too: the preview water sphere is transient (never saved)
+//Works in edit mode too: the preview water sphere is transient (never saved).
+//
+//The edit-mode preview is driven by SFEditorDriver, not by this component — it rebuilds
+//when marked dirty and never watches for its own changes. See SFEditorDriver for why
 [ExecuteAlways]
 public class SFWaterShell : MonoBehaviour
+#if UNITY_EDITOR
+    , SFEditorDriver.ISFEditorClient
+#endif
 {
     //Transparent material for the water surface; leave empty for the bundled water shader
     public Material waterMaterial;
@@ -92,8 +98,10 @@ public class SFWaterShell : MonoBehaviour
             waterObject.hideFlags = HideFlags.HideAndDontSave;
 
         //Configure before the new SFPlanet's Start runs (Start is deferred past AddComponent).
-        //In edit mode its own preview tick picks the settings up on the next editor update
+        //In edit mode this shell rebuilds it directly (see EditorRebuild) — a shell planet
+        //never queues itself with the driver, so nothing else can rebuild it behind our back
         waterPlanet = waterObject.AddComponent<SFPlanet>();
+        waterPlanet.isShellPlanet = true;
         waterPlanet.planetRadius = SeaRadius();
         waterPlanet.LOD = hostPlanet.LOD;   //match base subdivision so shading density agrees
         waterPlanet.quadsPerEdgeSetting = hostPlanet.quadsPerEdgeSetting;
@@ -245,13 +253,19 @@ public class SFWaterShell : MonoBehaviour
     #region Editor Preview
 
 #if UNITY_EDITOR
+    //Shells attach to a planet that must already have been built this tick
+    public SFEditorDriver.SF_REBUILD_ORDER RebuildOrder
+    {
+        get { return SFEditorDriver.SF_REBUILD_ORDER.SHELL; }
+    }
+
     private void OnEnable()
     {
         if (Application.isPlaying)
             return;
 
-        UnityEditor.EditorApplication.update -= EditorWaterTick;
-        UnityEditor.EditorApplication.update += EditorWaterTick;
+        //Ask for one rebuild; the driver owns the loop
+        SFEditorDriver.MarkDirty(this);
     }
 
     private void OnDisable()
@@ -259,7 +273,7 @@ public class SFWaterShell : MonoBehaviour
         if (Application.isPlaying)
             return;
 
-        UnityEditor.EditorApplication.update -= EditorWaterTick;
+        SFEditorDriver.Forget(this);
 
         if (waterPlanet != null)
         {
@@ -268,14 +282,19 @@ public class SFWaterShell : MonoBehaviour
         }
     }
 
-    private void EditorWaterTick()
+    //Inspector edits queue a rebuild and nothing else. Doing the work here would run it
+    //once per changed field, mid-drag, outside the driver's ordering
+    private void OnValidate()
     {
-        if (this == null)
-        {
-            UnityEditor.EditorApplication.update -= EditorWaterTick;
+        if (Application.isPlaying)
             return;
-        }
 
+        SFEditorDriver.MarkDirty(this);
+    }
+
+    //Called only by SFEditorDriver
+    public void EditorRebuild()
+    {
         if (!ResolveHost())
             return;
 
@@ -296,6 +315,12 @@ public class SFWaterShell : MonoBehaviour
             CreateWaterPlanet();
 
         SyncWaterPlanet();
+
+        //The shell planet is ours to drive: it is flagged isShellPlanet, so it never queues
+        //itself and would otherwise sit unbuilt. Sync first, rebuild second — the rebuild
+        //has to see this frame's sea radius and material
+        if (waterPlanet != null)
+            waterPlanet.EditorRebuild();
     }
 #endif
 
