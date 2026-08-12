@@ -80,7 +80,23 @@ Shader "StellarForge/Star Glare"
 
                 float2 corner = v.vertex.xy * scale.xy;
 
-                o.pos = mul(UNITY_MATRIX_P, float4(centerView + float3(corner, 0.0), 1.0));
+                //Point-facing, not screen-aligned. A screen-aligned quad (corners offset in
+                //view XY) only lines up with the star's silhouette when the star is at the
+                //centre of the view: off-axis, perspective shifts the sphere's silhouette
+                //outward while the quad stays put, so the glow slides off the disc and the
+                //bare photosphere pokes out one side as a granulated crescent. Building the
+                //quad perpendicular to the camera->star direction keeps quad and silhouette
+                //sharing a symmetry axis, so they stay concentric from any angle.
+                //The camera sits at the origin in view space, so the direction from the star
+                //to the camera is just -centerView
+                float3 toCamera = normalize(-centerView);
+                float3 upReference = abs(toCamera.y) < 0.99 ? float3(0.0, 1.0, 0.0) : float3(1.0, 0.0, 0.0);
+                float3 quadRight = normalize(cross(upReference, toCamera));
+                float3 quadUp = cross(toCamera, quadRight);
+
+                float3 cornerView = centerView + quadRight * corner.x + quadUp * corner.y;
+
+                o.pos = mul(UNITY_MATRIX_P, float4(cornerView, 1.0));
                 o.uv = v.vertex.xy * 2.0;   //-1..1 across the quad
 
                 return o;
