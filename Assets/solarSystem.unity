@@ -179,7 +179,7 @@ Camera:
     width: 1
     height: 1
   near clip plane: 2000
-  far clip plane: 468629.03
+  far clip plane: 864598.25
   field of view: 60
   orthographic: 0
   orthographic size: 5
@@ -348,13 +348,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4b4bd47c243c4d048931e45eb81dde15, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::StellarForge
-  SystemSeed: 88426
-  primaryMass: 1
+  SystemSeed: 89076
+  primaryMass: 1.435
   overrideLuminosity: 0
-  primaryLuminosity: 1
-  binaryType: 0
-  companionMass: 0
-  binarySeparation: 0
+  primaryLuminosity: 5.4257393
+  binaryType: 1
+  companionMass: 0.114
+  binarySeparation: 0.46
   binaryEccentricity: 0
   Designation: Sol
   Name: The Solar System

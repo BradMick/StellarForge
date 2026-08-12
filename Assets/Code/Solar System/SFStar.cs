@@ -56,8 +56,13 @@ public class SFStar : MonoBehaviour
     //Casts a directional light on the system. Turn off for a companion you want visible
     //but not lighting the scene
     public bool castsLight = true;
-    //Illumination at 1 AU for a 1 Lsol star — everything else scales from this
-    public float lightIntensityAtOneAU = 1.3f;
+    //Global calibration, NOT this star's output: Unity light intensity that a 1 Lsol star
+    //produces at 1 AU. The actual intensity multiplies this by the star's own luminosity
+    //and falls off with distance squared — an A-class casts thousands of times more light
+    //than an M dwarf from the same field value. One knob for "how bright is starlight in
+    //this game", deliberately identical on every star
+    [UnityEngine.Serialization.FormerlySerializedAs("lightIntensityAtOneAU")]
+    public float intensityPerSolarLuminosity = 1.3f;
     //What the light should be aimed at; falls back to the main camera
     public Transform lightTarget;
 
@@ -345,13 +350,14 @@ public class SFStar : MonoBehaviour
                 sunLight.transform.rotation = Quaternion.LookRotation(toTarget.normalized);
 
             //Inverse-square falloff against the distance the target actually sits at,
-            //expressed in the same units the visual radius uses
+            //expressed in the same units the visual radius uses. The 4x cap is an LDR
+            //blowout guard for close approaches — revisit when HDR/bloom lands
             float distanceAU = DistanceInAU(toTarget.magnitude);
-            sunLight.intensity = Mathf.Clamp(lightIntensityAtOneAU * luminosity / Mathf.Max(distanceAU * distanceAU, 0.01f),
-                                             0.0f, lightIntensityAtOneAU * 4.0f);
+            sunLight.intensity = Mathf.Clamp(intensityPerSolarLuminosity * luminosity / Mathf.Max(distanceAU * distanceAU, 0.01f),
+                                             0.0f, intensityPerSolarLuminosity * 4.0f);
         }
         else
-            sunLight.intensity = lightIntensityAtOneAU * luminosity;
+            sunLight.intensity = intensityPerSolarLuminosity * luminosity;
     }
 
     //World units per AU — set by the spawn pass through the scale profile. Until then,
