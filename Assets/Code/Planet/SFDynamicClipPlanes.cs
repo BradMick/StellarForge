@@ -29,7 +29,14 @@ public class SFDynamicClipPlanes : MonoBehaviour
     private SFStar[] cachedStars = new SFStar[0];
     private float nextPlanetScan;
 
-    private void LateUpdate()
+    //OnPreCull, not LateUpdate: it fires for EVERY render of this camera, including
+    //edit-mode Game view repaints. LateUpdate on an ExecuteAlways component only runs on
+    //editor ticks, which are not guaranteed to precede a Game view repaint — so in edit
+    //mode the camera could render with whatever planes were serialized (near 0.1), and at
+    //stellar distances that leaves no depth precision at the geometry: the star renders
+    //as a black disc inside its own glare. Empirically confirmed — hand-raising near from
+    //0.1 to 0.29 flipped the photosphere from black to correct with no other change
+    private void OnPreCull()
     {
         if (targetCamera == null)
             targetCamera = GetComponent<Camera>();
