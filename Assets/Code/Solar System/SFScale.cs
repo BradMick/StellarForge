@@ -87,11 +87,18 @@ public static class SFScale
     //compressed orbits — which is precisely the bug described at the top of this file
     public const double WORLD_UNITS_PER_SOLAR_RADIUS = 696340.0 * WORLD_UNITS_PER_KILOMETRE / ORBIT_COMPRESSION;
 
-    //Pure art direction, and the one number here chosen by eye rather than derived. 1 = the
-    //real 0.53 degrees from an Earth-like orbit; 2 = 1.07 degrees, plainly a disc rather than
-    //a bright point while space still reads as mostly empty and dark. Raise it with the inner
-    //orbits in view — at 8x the sun covers ~9.5% of Mercury's orbit
-    public const float STAR_RADIUS_SCALE = 2.0f;
+    //Pure art direction, and the one number here chosen by eye rather than derived — set by
+    //looking at a G-class star against its own system and picking what read best.
+    //
+    //13x puts a Sol-radius star at ~89,500 units: 6.9 degrees from an Earth-like orbit
+    //against the real sky's 0.53. Frankly operatic, and deliberately so — at true scale the
+    //sun is a bright dot that never reads as the object the whole system orbits.
+    //
+    //It costs nothing structurally. The star's radius is 0.06 AU, so it sits at 20% of the
+    //0.30 AU inner planet limit and 15% of a Mercury-like orbit — a commanding disc that
+    //still swallows nothing. Raise this only with the inner orbits in view, since those are
+    //what it eats first. Affects the star's radius ONLY; orbit distances are untouched
+    public const float STAR_RADIUS_SCALE = 13.0f;
 
     //--- Terrain ---
 
