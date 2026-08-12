@@ -80,20 +80,7 @@ Shader "StellarForge/Star Glare"
 
                 float2 corner = v.vertex.xy * scale.xy;
 
-                //Pull the quad toward the camera along view Z before projecting.
-                //
-                //The billboard is flat and sits at the star's CENTRE depth, but the
-                //photosphere bulges a full radius toward the camera. Close in, the quad's
-                //plane therefore cuts through the sphere, the near hemisphere occludes the
-                //outer part of the quad, and the glare is chopped into a hard black ring at
-                //the limb — worse the closer you get, gone by a few radii out.
-                //
-                //Half the quad's own extent always clears the sphere, because the star is
-                //never larger than the glare drawn around it. View space is +Z into the
-                //screen in Unity's convention, so subtracting moves toward the camera
-                float pullToward = max(scale.x, scale.y) * 0.5;
-
-                o.pos = mul(UNITY_MATRIX_P, float4(centerView + float3(corner, -pullToward), 1.0));
+                o.pos = mul(UNITY_MATRIX_P, float4(centerView + float3(corner, 0.0), 1.0));
                 o.uv = v.vertex.xy * 2.0;   //-1..1 across the quad
 
                 return o;

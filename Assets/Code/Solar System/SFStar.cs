@@ -194,12 +194,7 @@ public class SFStar : MonoBehaviour
                 renderer.receiveShadows = false;
             }
 
-            //The glare shader pulls each quad half its own extent toward the camera so the
-            //billboard clears the photosphere instead of being sliced by it. That only works
-            //while half the quad is wider than the star, so keep the smallest layer above
-            //the disc — below roughly 2.2 the innermost layer sinks back into the sphere and
-            //the limb returns as a hard black ring
-            float size = visualRadius * 2.0f * Mathf.Max(glareScale, 2.5f) * glareLayerScale[i];
+            float size = visualRadius * 2.0f * glareScale * glareLayerScale[i];
             glareObjects[i].transform.localScale = new Vector3(size, size, size);
         }
 
