@@ -61,6 +61,12 @@ public class SFStar : MonoBehaviour
     //What the light should be aimed at; falls back to the main camera
     public Transform lightTarget;
 
+    //Every live star, registered on enable. THE way to enumerate stars — spawned stars are
+    //DontSave objects, and FindObjectsByType silently skips those, which left the camera's
+    //clip-plane fitter certain no stars existed while one filled the screen
+    public static readonly System.Collections.Generic.List<SFStar> ActiveStars =
+        new System.Collections.Generic.List<SFStar>();
+
     private GameObject surfaceObject;
     private GameObject prominenceObject;
     private Material surfaceMaterial;
@@ -111,6 +117,9 @@ public class SFStar : MonoBehaviour
 
     private void OnEnable()
     {
+        if (!ActiveStars.Contains(this))
+            ActiveStars.Add(this);
+
         //Play mode has no driver — build immediately. In edit mode the driver decides when
         if (Application.isPlaying)
         {
@@ -452,6 +461,8 @@ public class SFStar : MonoBehaviour
 
     private void OnDisable()
     {
+        ActiveStars.Remove(this);
+
 #if UNITY_EDITOR
         SFEditorDriver.Forget(this);
 #endif

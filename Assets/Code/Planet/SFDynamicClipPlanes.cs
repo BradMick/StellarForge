@@ -32,7 +32,6 @@ public class SFDynamicClipPlanes : MonoBehaviour
 
     private Camera targetCamera;
     private SFPlanet[] cachedPlanets = new SFPlanet[0];
-    private SFStar[] cachedStars = new SFStar[0];
     private float nextPlanetScan;
     private string lastVerdict = "never ran";
 
@@ -65,20 +64,9 @@ public class SFDynamicClipPlanes : MonoBehaviour
                 }
         }
 
-        if (!stale)
-        {
-            for (int i = 0; i < cachedStars.Length; i++)
-                if (cachedStars[i] == null)
-                {
-                    stale = true;
-                    break;
-                }
-        }
-
         if (stale)
         {
             cachedPlanets = FindObjectsByType<SFPlanet>(FindObjectsSortMode.None);
-            cachedStars = FindObjectsByType<SFStar>(FindObjectsSortMode.None);
             nextPlanetScan = Time.unscaledTime + 1.0f;
         }
 
@@ -105,13 +93,15 @@ public class SFDynamicClipPlanes : MonoBehaviour
                 farthest = reach;
         }
 
-        //Stars count too. They were ignored here, which meant a system with stars but no
-        //planets — the normal state before a planet spawn pass exists — took the early-out
-        //below and left the camera on its default planes. At a million-plus units out, that
-        //has no depth precision left for the photosphere sphere, and the star renders as a
-        //black disc inside its own glare
-        SFStar[] stars = cachedStars;
-        for (int i = 0; i < stars.Length; i++)
+        //Stars count too — via their own registry, NEVER FindObjectsByType. Spawned stars
+        //are DontSave objects, and FindObjectsByType silently skips those: the previous
+        //version scanned for stars, found none while one filled the screen, took the
+        //early-out below every frame, and left the camera on its serialized planes. The
+        //stale far plane then sliced the star — a dark ring at the limb seen head-on, a
+        //crescent bite seen off-axis — which spent days being misdiagnosed as mesh
+        //winding, depth-state and billboard bugs. The star itself was never broken
+        var stars = SFStar.ActiveStars;
+        for (int i = 0; i < stars.Count; i++)
         {
             if (stars[i] == null)
                 continue;
@@ -141,7 +131,7 @@ public class SFDynamicClipPlanes : MonoBehaviour
 
         lastVerdict = "applied near " + targetCamera.nearClipPlane.ToString("0.##")
             + " / far " + targetCamera.farClipPlane.ToString("0")
-            + " | stars " + cachedStars.Length + " planets " + cachedPlanets.Length
+            + " | stars " + SFStar.ActiveStars.Count + " planets " + cachedPlanets.Length
             + " | altitude " + altitude.ToString("0");
     }
 
