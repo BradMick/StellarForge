@@ -3,16 +3,25 @@ using UnityEngine;
 
 //Creates the system's star bodies in the scene, positioned by the ephemeris.
 //
-//Deliberately NOT ExecuteAlways, and it never spawns from OnEnable. An earlier version
-//did both, which put it in conflict with the generator's gizmo drawing and each body's
-//own editor preview — bodies were destroyed and rebuilt every frame. Spawning happens in
-//play mode, or when you press the button on the inspector. Nothing here runs on its own
+//Edit-mode spawning goes through SFEditorDriver like every other generated thing — this
+//component never rebuilds on its own initiative. (An earlier, pre-driver version ran its
+//own edit-mode loop and fought the generator's gizmos and each body's preview; the driver
+//is what makes edit-mode participation safe now.) Spawned stars are DontSave, so leaving
+//play mode destroys the play-spawned set — without the driver hook the scene came back
+//starless every time, and the button needed pressing again
+[ExecuteAlways]
 [RequireComponent(typeof(StellarForge))]
 public class SFStarSpawner : MonoBehaviour
+#if UNITY_EDITOR
+    , SFEditorDriver.ISFEditorClient
+#endif
 {
     //Scale is universal — see SFScale. Nothing to assign, nothing to tune per system
 
     [Header("Behaviour")]
+    //Keep stars present while editing: respawn through the driver whenever this enables
+    //(scene load, domain reload, returning from play mode). Off = button and play only
+    public bool autoSpawnInEditor = true;
     //Stars follow their orbits around the barycenter as time advances (binaries only —
     //a single star sits at the origin)
     public bool animateOrbits = true;
@@ -25,10 +34,45 @@ public class SFStarSpawner : MonoBehaviour
     private StellarForge forge;
     private double currentDay;
 
+#if UNITY_EDITOR
+    //Stars are built after the generator, before planets and shells
+    public SFEditorDriver.SF_REBUILD_ORDER RebuildOrder
+    {
+        get { return SFEditorDriver.SF_REBUILD_ORDER.STAR; }
+    }
+
+    //Called only by SFEditorDriver
+    public void EditorRebuild()
+    {
+        if (autoSpawnInEditor)
+            Spawn();
+    }
+#endif
+
+    private void OnEnable()
+    {
+        if (Application.isPlaying)
+            return;
+
+#if UNITY_EDITOR
+        //Queue a respawn; the driver decides when. This is what brings the stars back
+        //after play mode tears down the play-spawned set
+        SFEditorDriver.MarkDirty(this);
+#endif
+    }
+
+    private void OnDisable()
+    {
+#if UNITY_EDITOR
+        SFEditorDriver.Forget(this);
+#endif
+    }
+
     private void Start()
     {
-        //Play mode spawns automatically; edit mode uses the inspector button
-        Spawn();
+        //Play mode spawns automatically; edit mode spawns through the driver
+        if (Application.isPlaying)
+            Spawn();
     }
 
     private void Update()
@@ -114,5 +158,21 @@ public class SFStarSpawner : MonoBehaviour
 
         spawned.Clear();
         bodies.Clear();
+
+        //The list above is not serialized, so a domain reload or play transition loses
+        //track of stars that survived it (they are DontSave — scene loads do not destroy
+        //them). Sweep the actual children so a lost list can never mean duplicate suns
+        for (int i = transform.childCount - 1; i >= 0; i--)
+        {
+            GameObject child = transform.GetChild(i).gameObject;
+
+            if ((child.hideFlags & HideFlags.DontSave) != 0 && child.GetComponent<SFStar>() != null)
+            {
+                if (Application.isPlaying)
+                    Destroy(child);
+                else
+                    DestroyImmediate(child);
+            }
+        }
     }
 }
