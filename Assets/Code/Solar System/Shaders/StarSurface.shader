@@ -36,6 +36,16 @@ Shader "StellarForge/Star Surface"
 
         Pass
         {
+            //Explicit state rather than the defaults. A star is a convex opaque body lit only
+            //by itself, so back faces can never be visible and the near hemisphere always
+            //wins on its own — none of that needs the depth buffer's help. Saying so keeps
+            //the disc rendering correctly even when the camera's near/far range is too wide
+            //to resolve a body this large, which otherwise lets the FAR side win the depth
+            //test and paints the whole disc black
+            Cull Back
+            ZWrite On
+            ZTest LEqual
+
             CGPROGRAM
             #pragma vertex vert
             #pragma fragment frag

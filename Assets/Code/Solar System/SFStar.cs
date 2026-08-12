@@ -72,6 +72,7 @@ public class SFStar : MonoBehaviour
     private readonly GameObject[] glareObjects = new GameObject[GlareLayerCount];
     private readonly Material[] glareMaterials = new Material[GlareLayerCount];
     private static Mesh quadMesh;
+    private static Mesh sphereMesh;
 
     //Per-layer tuning: size multiplier, falloff power, intensity multiplier.
     //Layer 0 is a tight incandescent ring hugging the disc, layer 1 the thick coloured
@@ -151,29 +152,31 @@ public class SFStar : MonoBehaviour
 
     private void EnsureObjects()
     {
+        //Both shells use the dense sphere rather than GameObject.CreatePrimitive: the
+        //primitive's ~20 segments are plainly polygonal at stellar size, and a star is not a
+        //collidable surface at any scale we care about, so there is no collider to strip
         if (surfaceObject == null)
         {
-            surfaceObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            surfaceObject.name = "Photosphere";
+            surfaceObject = new GameObject("Photosphere");
             surfaceObject.transform.SetParent(transform, false);
             surfaceObject.hideFlags = HideFlags.HideAndDontSave;
 
-            //A star is not a collidable surface at any scale we care about
-            Collider collider = surfaceObject.GetComponent<Collider>();
-            if (collider != null)
-                DestroyImmediate(collider);
+            surfaceObject.AddComponent<MeshFilter>().sharedMesh = GetSphereMesh();
+            MeshRenderer renderer = surfaceObject.AddComponent<MeshRenderer>();
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
         }
 
         if (prominenceObject == null)
         {
-            prominenceObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            prominenceObject.name = "Prominences";
+            prominenceObject = new GameObject("Prominences");
             prominenceObject.transform.SetParent(transform, false);
             prominenceObject.hideFlags = HideFlags.HideAndDontSave;
 
-            Collider collider = prominenceObject.GetComponent<Collider>();
-            if (collider != null)
-                DestroyImmediate(collider);
+            prominenceObject.AddComponent<MeshFilter>().sharedMesh = GetSphereMesh();
+            MeshRenderer renderer = prominenceObject.AddComponent<MeshRenderer>();
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
         }
 
         //Glare billboards — quads the shader orients toward the camera
@@ -347,6 +350,79 @@ public class SFStar : MonoBehaviour
     }
 
     //Unit quad centred on the origin — the billboard shader spins it toward the camera
+    //A dense UV sphere for the photosphere and prominence shells.
+    //
+    //Unity's primitive sphere is about 20 segments — fine for a prop, plainly polygonal when
+    //it is 90,000 units across and fills the screen. Its coarse UVs also band the granulation
+    //noise into visible hexagonal cells, which reads as a wireframe rather than plasma.
+    //Built once and shared by every star
+    private static Mesh GetSphereMesh()
+    {
+        if (sphereMesh != null)
+            return sphereMesh;
+
+        const int segments = 128;   //longitude divisions
+        const int rings = 64;       //latitude divisions
+
+        int vertexCount = (segments + 1) * (rings + 1);
+        Vector3[] vertices = new Vector3[vertexCount];
+        Vector3[] normals = new Vector3[vertexCount];
+        Vector2[] uv = new Vector2[vertexCount];
+
+        int v = 0;
+        for (int y = 0; y <= rings; y++)
+        {
+            float lat = Mathf.PI * y / rings;
+            float sinLat = Mathf.Sin(lat);
+            float cosLat = Mathf.Cos(lat);
+
+            for (int x = 0; x <= segments; x++)
+            {
+                float lon = 2.0f * Mathf.PI * x / segments;
+
+                //Radius 0.5 so the mesh matches Unity's primitive convention: the object's
+                //local scale is then the star's diameter, as the callers already assume
+                Vector3 unit = new Vector3(sinLat * Mathf.Cos(lon), cosLat, sinLat * Mathf.Sin(lon));
+
+                vertices[v] = unit * 0.5f;
+                normals[v] = unit;
+                uv[v] = new Vector2((float)x / segments, 1.0f - (float)y / rings);
+                v++;
+            }
+        }
+
+        int[] triangles = new int[segments * rings * 6];
+        int t = 0;
+        for (int y = 0; y < rings; y++)
+        {
+            for (int x = 0; x < segments; x++)
+            {
+                int a = y * (segments + 1) + x;
+                int b = a + segments + 1;
+
+                triangles[t++] = a;
+                triangles[t++] = b;
+                triangles[t++] = a + 1;
+
+                triangles[t++] = a + 1;
+                triangles[t++] = b;
+                triangles[t++] = b + 1;
+            }
+        }
+
+        sphereMesh = new Mesh();
+        sphereMesh.name = "SFStarSphere";
+        sphereMesh.hideFlags = HideFlags.HideAndDontSave;
+        //Past 65k vertices the default 16-bit index buffer wraps around
+        sphereMesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+        sphereMesh.vertices = vertices;
+        sphereMesh.normals = normals;
+        sphereMesh.uv = uv;
+        sphereMesh.triangles = triangles;
+
+        return sphereMesh;
+    }
+
     private static Mesh GetQuadMesh()
     {
         if (quadMesh != null)
