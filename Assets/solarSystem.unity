@@ -178,8 +178,8 @@ Camera:
     y: 0
     width: 1
     height: 1
-  near clip plane: 0.5
-  far clip plane: 500000
+  near clip plane: 2000
+  far clip plane: 468629.03
   field of view: 60
   orthographic: 0
   orthographic size: 5
@@ -249,6 +249,7 @@ MonoBehaviour:
   maxNear: 2000
   nearAltitudeFraction: 0.05
   minFar: 100000
+  debugOverlay: 1
 --- !u!1 &1816690567
 GameObject:
   m_ObjectHideFlags: 0
@@ -332,6 +333,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 88d43fc6e63f134478e6d142e8415bd2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SFStarSpawner
+  autoSpawnInEditor: 1
   animateOrbits: 1
   daysPerSecond: 0.5
 --- !u!114 &2090430567

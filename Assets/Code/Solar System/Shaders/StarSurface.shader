@@ -216,9 +216,19 @@ Shader "StellarForge/Star Surface"
 
                 //Blackbody ramp anchored to the star's own colour. The disc of a bright
                 //star is overwhelmingly white-hot — its colour shows in the cooler lanes
-                //and at the rim, not across the whole face
-                fixed3 emberColor = _StarColor.rgb * fixed3(0.85, 0.42, 0.12);
-                fixed3 midColor   = lerp(_StarColor.rgb, fixed3(1.0, 0.92, 0.62), 0.55);
+                //and at the rim, not across the whole face.
+                //
+                //The lane and rim tints push toward ember only as far as the star's OWN
+                //warmth justifies. They were tuned on a G star and were hardcoded orange,
+                //which painted an A-class blue-white star orange too. Lanes and limb are
+                //cooler than the disc on any star — but cooler relative to ITS temperature
+                float warmth = saturate((_StarColor.r - _StarColor.b) * 2.0 + 0.5);
+
+                fixed3 emberTint = lerp(fixed3(0.62, 0.68, 0.88), fixed3(0.85, 0.42, 0.12), warmth);
+                fixed3 laneTint  = lerp(fixed3(0.86, 0.93, 1.00), fixed3(1.0, 0.92, 0.62), warmth);
+
+                fixed3 emberColor = _StarColor.rgb * emberTint;
+                fixed3 midColor   = lerp(_StarColor.rgb, laneTint, 0.55);
                 fixed3 hotColor   = lerp(_StarColor.rgb, fixed3(1.0, 1.0, 0.97), _CoreWhite);
 
                 fixed3 color = heat < 0.5
@@ -226,9 +236,13 @@ Shader "StellarForge/Star Surface"
                     : lerp(midColor, hotColor, saturate((heat - 0.5) * 2.0));
 
                 //Hard bright rim: the last sliver of the disc against space flares up.
-                //This edge is a large part of what makes a star read as incandescent
+                //This edge is a large part of what makes a star read as incandescent.
+                //Rim glow follows the same warmth gate as the lanes — incandescent amber
+                //on a cool star, searing blue-white on a hot one
+                fixed3 rimTint = lerp(fixed3(0.80, 0.90, 1.0), fixed3(1.0, 0.85, 0.45), warmth);
+
                 float rim = pow(saturate(1.0 - facing), _RimPower);
-                color += lerp(_StarColor.rgb, fixed3(1.0, 0.85, 0.45), 0.5) * rim * _RimBoost;
+                color += lerp(_StarColor.rgb, rimTint, 0.5) * rim * _RimBoost;
 
                 //Gentle overall falloff — the rim above supplies the edge definition
                 float brightness = lerp(1.0 - _LimbDarkening, 1.0, pow(facing, 0.45));

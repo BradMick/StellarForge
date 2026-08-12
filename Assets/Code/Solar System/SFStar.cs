@@ -254,11 +254,16 @@ public class SFStar : MonoBehaviour
                 continue;
 
             //The inner ring burns near-white; the corona layers carry the star's colour
-            //pushed warm, which is what gives the halo its glowing ember quality
+            //pushed toward ember — but only as far as the star's OWN warmth justifies.
+            //These multipliers were tuned on a G star and used to apply unconditionally,
+            //which painted an A-class blue-white star with Sol's orange corona. A cool
+            //star keeps the glowing-ember halo; a hot star's halo stays its own colour
+            float warmth = Mathf.Clamp01((starColor.r - starColor.b) * 2.0f + 0.5f);
+
             Color warm = new Color(
                 Mathf.Min(starColor.r * 1.1f, 1.0f),
-                starColor.g * 0.62f,
-                starColor.b * 0.22f);
+                starColor.g * Mathf.Lerp(0.95f, 0.62f, warmth),
+                starColor.b * Mathf.Lerp(0.90f, 0.22f, warmth));
 
             Color layerColor = i == 0
                 ? Color.Lerp(starColor, Color.white, 0.65f)
