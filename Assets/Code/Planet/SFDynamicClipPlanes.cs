@@ -24,10 +24,17 @@ public class SFDynamicClipPlanes : MonoBehaviour
     //planet with margin, so bodies never clip out of existence at fixed-far distances
     public float minFar = 100000.0f;
 
+    //On-screen readout of what this component actually did last frame. The camera planes
+    //failing silently produced a multi-day debugging spiral (a stale far plane slicing the
+    //star into a crescent, blamed on meshes and billboards) — never again. Leave on until
+    //the scale work settles
+    public bool debugOverlay = true;
+
     private Camera targetCamera;
     private SFPlanet[] cachedPlanets = new SFPlanet[0];
     private SFStar[] cachedStars = new SFStar[0];
     private float nextPlanetScan;
+    private string lastVerdict = "never ran";
 
     //OnPreCull, not LateUpdate: it fires for EVERY render of this camera, including
     //edit-mode Game view repaints. LateUpdate on an ExecuteAlways component only runs on
@@ -123,9 +130,28 @@ public class SFDynamicClipPlanes : MonoBehaviour
 
         //Nothing to frame — leave the camera's authored planes alone
         if (altitude == float.MaxValue)
+        {
+            lastVerdict = "SKIPPED: no planets or stars found — camera keeps serialized planes "
+                + targetCamera.nearClipPlane.ToString("0.##") + " / " + targetCamera.farClipPlane.ToString("0");
             return;
+        }
 
         targetCamera.nearClipPlane = Mathf.Clamp(Mathf.Abs(altitude) * nearAltitudeFraction, minNear, maxNear);
         targetCamera.farClipPlane = Mathf.Max(minFar, farthest * 1.2f);
+
+        lastVerdict = "applied near " + targetCamera.nearClipPlane.ToString("0.##")
+            + " / far " + targetCamera.farClipPlane.ToString("0")
+            + " | stars " + cachedStars.Length + " planets " + cachedPlanets.Length
+            + " | altitude " + altitude.ToString("0");
+    }
+
+    //Ground truth on screen. If this text is missing from the Game view entirely, the
+    //running assembly predates this code — which is itself the answer
+    private void OnGUI()
+    {
+        if (!debugOverlay)
+            return;
+
+        GUI.Label(new Rect(10, 10, 900, 22), "SFDynamicClipPlanes: " + lastVerdict);
     }
 }
