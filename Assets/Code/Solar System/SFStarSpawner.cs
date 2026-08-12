@@ -10,32 +10,20 @@ using UnityEngine;
 [RequireComponent(typeof(StellarForge))]
 public class SFStarSpawner : MonoBehaviour
 {
-    [Header("Scale")]
-    //Owns the AU-to-world and radius conversions. Sensible defaults are used without one
-    public SFSystemScaleProfile scaleProfile;
+    //Scale is universal — see SFScale. Nothing to assign, nothing to tune per system
 
     [Header("Behaviour")]
     //Stars follow their orbits around the barycenter as time advances (binaries only —
     //a single star sits at the origin)
     public bool animateOrbits = true;
-    //Simulated days per real second when no scale profile is assigned
-    public double daysPerSecond = 0.5;
+    //Simulated days per real second. Playback speed, not scale — safe to vary per scene
+    public double daysPerSecond = SFScale.DAYS_PER_SECOND;
 
     private readonly List<GameObject> spawned = new List<GameObject>();
     private readonly List<SFSystemMap.Body> bodies = new List<SFSystemMap.Body>();
 
     private StellarForge forge;
     private double currentDay;
-
-    private double WorldUnitsPerAU
-    {
-        get { return scaleProfile != null ? scaleProfile.worldUnitsPerAU : 100000.0; }
-    }
-
-    private double DaysPerSecond
-    {
-        get { return scaleProfile != null ? scaleProfile.daysPerSecond : daysPerSecond; }
-    }
 
     private void Start()
     {
@@ -48,7 +36,7 @@ public class SFStarSpawner : MonoBehaviour
         if (!Application.isPlaying || !animateOrbits)
             return;
 
-        currentDay += Time.deltaTime * DaysPerSecond;
+        currentDay += Time.deltaTime * daysPerSecond;
         UpdatePositions();
     }
 
@@ -90,12 +78,10 @@ public class SFStarSpawner : MonoBehaviour
         //lifecycle in edit mode, which would stop the star building its geometry
         starObject.hideFlags = HideFlags.DontSave;
 
-        float radius = scaleProfile != null
-            ? scaleProfile.StarRadiusToWorld(_body.star.Radius)
-            : _body.star.Radius * 35000.0f;
+        float radius = SFScale.StarRadiusToWorld(_body.star.Radius);
 
         SFStar star = starObject.AddComponent<SFStar>();
-        star.worldUnitsPerAU = (float)WorldUnitsPerAU;
+        star.worldUnitsPerAU = (float)SFScale.WORLD_UNITS_PER_AU;
         star.Configure(_body.star, radius);
 
         spawned.Add(starObject);
@@ -109,7 +95,7 @@ public class SFStarSpawner : MonoBehaviour
             if (spawned[i] == null)
                 continue;
 
-            spawned[i].transform.localPosition = bodies[i].GetPosition(currentDay).ToVector3(WorldUnitsPerAU);
+            spawned[i].transform.localPosition = bodies[i].GetPosition(currentDay).ToVector3(SFScale.WORLD_UNITS_PER_AU);
         }
     }
 

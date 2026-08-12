@@ -185,11 +185,32 @@ public class StellarForge : MonoBehaviour
     //Draw the system in the Scene view (orbits, zone rings) — regenerates in edit mode
     public bool  drawSystemMap    = true;
 
-    //World units per AU for the gizmo overlay
+    //Draw the overlay at the scale the system is actually BUILT at. Off = draw it as a
+    //standalone diagram at mapScale, which is useful when the real system is too spread out
+    //to take in at once.
+    //
+    //On by default because the alternative is two unrelated scales: mapScale defaulted to
+    //10 units/AU while the universe uses SFScale.WORLD_UNITS_PER_AU (10,000), so the drawn
+    //orbits were a thousand-fold miniature sitting inside the system they describe — stars
+    //floating far outside their own orbit rings
+    public bool  matchWorldScale  = true;
+
+    //World units per AU for the gizmo overlay when matchWorldScale is off
     public float mapScale = 10.0f;
     public bool  showOrbits       = true;
     public bool  showZones        = true;
     public bool  showLabels       = true;
+
+    //The scale the overlay actually draws at
+    private float MapScale
+    {
+        get
+        {
+            return matchWorldScale
+                ? (float)SFScale.WORLD_UNITS_PER_AU
+                : Mathf.Max(mapScale, 0.01f);
+        }
+    }
 
     private SFSun     Sun              = new SFSun();
     private SFSun     Companion;                        //null for a single star
@@ -360,7 +381,7 @@ public class StellarForge : MonoBehaviour
             double time = Application.isPlaying ? Time.timeSinceLevelLoad : 0.0;
             Vector3 zoneCenter = SystemMap.circumbinary
                 ? origin
-                : origin + SystemMap.primaryStar.GetPosition(time).ToVector3(mapScale);
+                : origin + SystemMap.primaryStar.GetPosition(time).ToVector3(MapScale);
 
             DrawZones(zoneCenter);
 
@@ -384,7 +405,7 @@ public class StellarForge : MonoBehaviour
         if (SystemMap.discSterilized)
         {
             UnityEditor.Handles.color = Color.red;
-            UnityEditor.Handles.Label(_origin + Vector3.up * mapScale * 0.5f,
+            UnityEditor.Handles.Label(_origin + Vector3.up * MapScale * 0.5f,
                 "NO PLANETS: companion truncates the disc to " + SystemMap.outerPlanetLimit.ToString("0.00")
                 + " AU, inside the " + SystemMap.innerPlanetLimit.ToString("0.00")
                 + " AU inner limit.\nWiden binarySeparation (20+ AU is typical).");
@@ -436,19 +457,21 @@ public class StellarForge : MonoBehaviour
             if (body.orbit != null)
             {
                 Vector3 parentOffset = body.parent != null
-                    ? body.parent.GetPosition(time).ToVector3(mapScale)
+                    ? body.parent.GetPosition(time).ToVector3(MapScale)
                     : Vector3.zero;
 
                 DrawOrbitPath(_origin + parentOffset, body.orbit, time, color);
             }
 
             //The body itself
-            Vector3 position = _origin + body.GetPosition(time).ToVector3(mapScale);
+            Vector3 position = _origin + body.GetPosition(time).ToVector3(MapScale);
             Gizmos.color = color;
 
+            //Marker size is a fraction of the map scale, so the diagram stays readable
+            //whether an AU is 10 units or 10,000
             float size = body.isStar
-                ? Mathf.Max(mapScale * 0.06f * body.star.Radius, mapScale * 0.03f)
-                : Mathf.Max(mapScale * 0.02f, 0.05f);
+                ? Mathf.Max(MapScale * 0.06f * body.star.Radius, MapScale * 0.03f)
+                : Mathf.Max(MapScale * 0.02f, 0.05f);
 
             Gizmos.DrawSphere(position, size);
 
@@ -486,10 +509,11 @@ public class StellarForge : MonoBehaviour
         const int segments = 96;
 
         //A scale change invalidates every cached shape
-        if (!Mathf.Approximately(cachedPathScale, mapScale))
+        float scale = MapScale;
+        if (!Mathf.Approximately(cachedPathScale, scale))
         {
             orbitPathCache.Clear();
-            cachedPathScale = mapScale;
+            cachedPathScale = scale;
         }
 
         Vector3[] path;
@@ -500,7 +524,7 @@ public class StellarForge : MonoBehaviour
             for (int i = 0; i <= segments; i++)
             {
                 double t = _orbit.periodDays * ((double)i / segments);
-                path[i] = _orbit.GetPosition(t).ToVector3(mapScale);
+                path[i] = _orbit.GetPosition(t).ToVector3(scale);
             }
 
             orbitPathCache[_orbit] = path;
@@ -538,7 +562,7 @@ public class StellarForge : MonoBehaviour
         if (_radiusAU <= 0.0f)
             return;
 
-        float radius = _radiusAU * mapScale;
+        float radius = _radiusAU * MapScale;
         Vector3[] ring = GetUnitRing();
 
         Gizmos.color = _color;
@@ -554,7 +578,7 @@ public class StellarForge : MonoBehaviour
             return;
 
         UnityEditor.Handles.color = Color.white;
-        UnityEditor.Handles.Label(_origin + new Vector3(0.0f, 0.0f, _radiusAU * mapScale), _text);
+        UnityEditor.Handles.Label(_origin + new Vector3(0.0f, 0.0f, _radiusAU * MapScale), _text);
     }
 #endif
 
