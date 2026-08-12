@@ -60,6 +60,15 @@ public class SFSystemMap
     {
         bodies.Clear();
 
+        //These are fields on a map that is REUSED across regenerations, so they have to be
+        //cleared, not merely reassigned: secondaryStar was only ever written inside the
+        //has-a-companion branch below, which left a stale companion standing whenever a
+        //binary system was followed by a single-star one. The habitability search makes
+        //that routine — it walks up to habitableSearchLimit seeds, and any of them that
+        //produced a companion left it behind for the seed that finally won
+        primaryStar = null;
+        secondaryStar = null;
+
         float companionMass = _companion != null ? _companion.Mass : 0.0f;
         circumbinary = _circumbinary && _companion != null;
 
