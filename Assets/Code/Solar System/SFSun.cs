@@ -3,6 +3,7 @@ using UnityEngine;
 //A star's complete physical description. Mass is the only free parameter of a
 //main-sequence star — luminosity, radius, temperature, colour and lifetime all follow
 //from it. Used for the primary AND any companion, so both are described identically
+[System.Serializable]
 public class SFSun
 {
     public SFSun()
@@ -30,7 +31,10 @@ public class SFSun
     public Color StarColor              { get { return c; }   set { c = value; } }
     public string SpectralClass         { get { return sc; }  set { sc = value; } }
 
-    private float l,        //Luminosity
+    //[SerializeField] throughout so a generated star can be saved into an SFSystemAsset.
+    //Unity serializes fields, not properties, and these are private — without the
+    //attribute the asset would write a star full of zeros
+    [SerializeField] private float l,        //Luminosity
                   m,        //Mass
                   a,        //Age
                   li,       //Life
@@ -40,8 +44,8 @@ public class SFSun
                   r_i,      //Inner planetary boundary...for circumbinary systems
                   r_s,      //Stellar radius in solar radii
                   t;        //Effective surface temperature
-    private Color c;        //Blackbody colour
-    private string sc;      //Spectral class (O B A F G K M)
+    [SerializeField] private Color c;        //Blackbody colour
+    [SerializeField] private string sc;      //Spectral class (O B A F G K M)
 
     //Fill every derived property from mass. _luminosityOverride > 0 substitutes a
     //hand-authored luminosity (evolved stars, art direction) instead of the

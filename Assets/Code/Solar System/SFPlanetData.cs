@@ -5,9 +5,12 @@ using System.Collections.Generic;
                                                                    //Gas Giant                       //Sub Gas Giant    //Sub Sub Gas Giant
 public enum SF_PLANET_TYPE { UNKNOWN, ROCK, VENUSIAN, TERRESTRIAL, JOVIAN,      MARTIAN, WATER, ICE, SUB_JOVIAN,        GAS_DWARF,          ASTEROIDS, ONE_FACE }
 
+[System.Serializable]
 public class SFGas
 {
-    SFGas()
+    //Public: Unity's deserializer constructs list elements itself and cannot reach a
+    //private constructor, so a saved atmosphere would come back empty
+    public SFGas()
     {
         i = 0;
         s_psi = 0.0f;
@@ -16,10 +19,11 @@ public class SFGas
     public int GasIndex             { get { return i; }     set { i = value; } }
     public float SurfacePressure    { get { return s_psi; } set { s_psi = value; } }
 
-    private int i;
-    private float s_psi;
+    [SerializeField] private int i;
+    [SerializeField] private float s_psi;
 }
 
+[System.Serializable]
 public class SFPlanetData
 {
     public SFPlanetData()
@@ -72,19 +76,22 @@ public class SFPlanetData
     public float IceCoverage                { get { return ice; }   set { ice = value; } }
     public float Density                    { get { return d; }     set { d = value; } }
 
-    private List<SFGas> gasList = new List<SFGas>();
+    //[SerializeField] throughout so a generated system can be saved into an
+    //SFSystemAsset. Unity serializes fields, not properties, and these are private —
+    //without the attribute the asset would write a planet full of zeros
+    [SerializeField] private List<SFGas> gasList = new List<SFGas>();
 
-    private SF_PLANET_TYPE planetType;
+    [SerializeField] private SF_PLANET_TYPE planetType;
 
-    private bool gasGiant,
+    [SerializeField] private bool gasGiant,
                  resonantPeriod,        //True if in resonant rotation...
-                 greenHouseEffect;      //Runaway greenhouse effect?  
+                 greenHouseEffect;      //Runaway greenhouse effect?
 
-    private int i,                      //Planet Index #
+    [SerializeField] private int i,     //Planet Index #
                 i_g,                    //Count of gases in the atmosphere
                 orbitalZone;
 
-    private float a,                    //Semi-major axis in AU
+    [SerializeField] private float a,   //Semi-major axis in AU
                   e,                    //Eccentricity
                   m, m_g, m_d,          //Mass / Mass of gas, Mass of dust
                   at,                   //Axial tilt

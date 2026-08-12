@@ -232,6 +232,38 @@ public class StellarForge : MonoBehaviour
 
     public SFSystemMap Map { get { return SystemMap; } }
 
+    //The generated planets, in generated order. Index here is a planet's identity: the
+    //system asset keys appearance and content off the same index
+    public List<SFPlanetData> Planets { get { return PLANET_LIST; } }
+
+    //Write the currently generated system into an asset. DESTRUCTIVE — every appearance
+    //tweak and every placed object stored there is discarded, because a regenerated system
+    //has different planets at different orbits and nothing to reconcile against. Callers
+    //must confirm with the user first (see SFSystemAsset.ContentCount)
+    public void SaveToAsset(SFSystemAsset _asset)
+    {
+        if (_asset == null)
+            return;
+
+        EnsureGenerated();
+
+        _asset.designation = Designation;
+        _asset.systemName = Name;
+
+        //Provenance: what these bodies came from, so a designer can see the inputs and
+        //regenerate from them later. Never replayed at load
+        _asset.systemSeed = SystemSeed;
+        _asset.primaryMass = primaryMass;
+        _asset.overrodeLuminosity = overrideLuminosity;
+        _asset.primaryLuminosity = primaryLuminosity;
+        _asset.companionMass = companionMass;
+        _asset.binarySeparation = binarySeparation;
+        _asset.binaryEccentricity = binaryEccentricity;
+        _asset.binaryType = binaryType;
+
+        _asset.StoreGeneratedSystem(Sun, Companion, PLANET_LIST);
+    }
+
     //Generate the system if it has not been generated yet, and return the map.
     //
     //Anything reading Map must come through here. Generation is triggered by lifecycle
